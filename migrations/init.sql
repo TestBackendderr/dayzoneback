@@ -35,11 +35,28 @@ CREATE TABLE IF NOT EXISTS financial_operations (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Создание таблицы розыска сталкеров
+CREATE TABLE IF NOT EXISTS wanted_stalkers (
+    id SERIAL PRIMARY KEY,
+    callsign VARCHAR(100) NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
+    face_id VARCHAR(50) NOT NULL,
+    reward DECIMAL(15,2) NOT NULL,
+    last_seen VARCHAR(255) NOT NULL,
+    reason TEXT NOT NULL,
+    photo_path VARCHAR(500),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Создание индексов для оптимизации
 CREATE INDEX IF NOT EXISTS idx_stalkers_callsign ON stalkers(callsign);
 CREATE INDEX IF NOT EXISTS idx_stalkers_face_id ON stalkers(face_id);
 CREATE INDEX IF NOT EXISTS idx_financial_user_id ON financial_operations(user_id);
 CREATE INDEX IF NOT EXISTS idx_financial_created_at ON financial_operations(created_at);
+CREATE INDEX IF NOT EXISTS idx_wanted_callsign ON wanted_stalkers(callsign);
+CREATE INDEX IF NOT EXISTS idx_wanted_face_id ON wanted_stalkers(face_id);
+CREATE INDEX IF NOT EXISTS idx_wanted_created_at ON wanted_stalkers(created_at);
 
 -- Вставка администратора по умолчанию
 INSERT INTO users (username, password, role) 
