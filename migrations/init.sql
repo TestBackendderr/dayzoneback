@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
-    role VARCHAR(20) DEFAULT 'user',
+    role VARCHAR(20) DEFAULT 'Neutral',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -60,7 +60,7 @@ CREATE INDEX IF NOT EXISTS idx_wanted_created_at ON wanted_stalkers(created_at);
 
 -- Вставка администратора по умолчанию
 INSERT INTO users (username, password, role) 
-VALUES ('admin', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin')
+VALUES ('admin', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Admin')
 ON CONFLICT (username) DO NOTHING;
 
 -- Вставка тестовых сталкеров

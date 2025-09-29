@@ -4,19 +4,19 @@ const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Получить все финансовые операции текущего пользователя
+// Получить все финансовые операции пользователей с той же ролью
 router.get('/operations', authenticateToken, async (req, res) => {
   try {
     const { page = 1, limit = 20, type, currency } = req.query;
     const offset = (page - 1) * limit;
     
     let query = `
-      SELECT fo.*, u.username 
+      SELECT fo.*, u.username, u.role
       FROM financial_operations fo
       JOIN users u ON fo.user_id = u.id
-      WHERE fo.user_id = $1
+      WHERE u.role = $1
     `;
-    const params = [req.user.id];
+    const params = [req.user.role];
     let paramCount = 1;
 
     // Фильтрация по типу операции
@@ -39,8 +39,13 @@ router.get('/operations', authenticateToken, async (req, res) => {
     const result = await pool.query(query, params);
 
     // Получаем общее количество операций для пагинации
-    let countQuery = 'SELECT COUNT(*) FROM financial_operations WHERE user_id = $1';
-    const countParams = [req.user.id];
+    let countQuery = `
+      SELECT COUNT(*) 
+      FROM financial_operations fo
+      JOIN users u ON fo.user_id = u.id
+      WHERE u.role = $1
+    `;
+    const countParams = [req.user.role];
     let countParamCount = 1;
 
     if (type && (type === '+' || type === '-')) {
@@ -74,20 +79,21 @@ router.get('/operations', authenticateToken, async (req, res) => {
   }
 });
 
-// Получить баланс текущего пользователя
+// Получить баланс пользователей с той же ролью
 router.get('/balance', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT 
-        currency,
-        SUM(CASE WHEN operation_type = '+' THEN amount ELSE 0 END) as income,
-        SUM(CASE WHEN operation_type = '-' THEN amount ELSE 0 END) as expense,
-        SUM(CASE WHEN operation_type = '+' THEN amount ELSE -amount END) as balance
-      FROM financial_operations 
-      WHERE user_id = $1
-      GROUP BY currency
-      ORDER BY currency
-    `, [req.user.id]);
+        fo.currency,
+        SUM(CASE WHEN fo.operation_type = '+' THEN fo.amount ELSE 0 END) as income,
+        SUM(CASE WHEN fo.operation_type = '-' THEN fo.amount ELSE 0 END) as expense,
+        SUM(CASE WHEN fo.operation_type = '+' THEN fo.amount ELSE -fo.amount END) as balance
+      FROM financial_operations fo
+      JOIN users u ON fo.user_id = u.id
+      WHERE u.role = $1
+      GROUP BY fo.currency
+      ORDER BY fo.currency
+    `, [req.user.role]);
 
     const balances = result.rows.map(row => ({
       currency: row.currency,
@@ -294,10 +300,11 @@ router.get('/statistics', authenticateToken, async (req, res) => {
         SUM(fo.amount) as total_amount,
         AVG(fo.amount) as avg_amount
       FROM financial_operations fo
-      WHERE fo.user_id = $1 ${dateFilter}
+      JOIN users u ON fo.user_id = u.id
+      WHERE u.role = $1 ${dateFilter}
       GROUP BY fo.currency, fo.operation_type
       ORDER BY fo.currency, fo.operation_type
-    `, [req.user.id]);
+    `, [req.user.role]);
 
     const statistics = result.rows.map(row => ({
       currency: row.currency,

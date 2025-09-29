@@ -12,7 +12,7 @@ async function createTables() {
         id SERIAL PRIMARY KEY,
         username VARCHAR(50) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
-        role VARCHAR(20) DEFAULT 'user',
+        role VARCHAR(20) DEFAULT 'Neutral',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -80,7 +80,7 @@ async function seedData() {
       
       await client.query(
         'INSERT INTO users (username, password, role) VALUES ($1, $2, $3)',
-        ['admin', hashedPassword, 'admin']
+        ['admin', hashedPassword, 'Admin']
       );
       
       console.log('☢ Создан администратор по умолчанию: admin/admin');
