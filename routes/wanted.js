@@ -3,7 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const pool = require('../config/database');
-const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { authenticateToken, requireAdmin, requireStalkerAccess } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -36,22 +36,26 @@ const upload = multer({
   }
 });
 
-// Получить всех разыскиваемых
+// Получить всех разыскиваемых (фильтрация по роли пользователя)
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { searchBy, searchTerm } = req.query;
-    let query = 'SELECT * FROM wanted_stalkers';
-    const params = [];
+    const userRole = req.user.role; // Get user's role from token
+
+    let query = 'SELECT * FROM wanted_stalkers WHERE role = $1';
+    const params = [userRole];
+    let paramCount = 1;
 
     if (searchTerm) {
+      paramCount++;
       if (searchBy === 'callsign') {
-        query += ' WHERE callsign ILIKE $1';
+        query += ` AND callsign ILIKE $${paramCount}`;
         params.push(`%${searchTerm}%`);
       } else if (searchBy === 'faceId') {
-        query += ' WHERE face_id ILIKE $1';
+        query += ` AND face_id ILIKE $${paramCount}`;
         params.push(`%${searchTerm}%`);
       } else if (searchBy === 'fullName') {
-        query += ' WHERE full_name ILIKE $1';
+        query += ` AND full_name ILIKE $${paramCount}`;
         params.push(`%${searchTerm}%`);
       }
     }
@@ -103,9 +107,10 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // Добавить в розыск
-router.post('/', authenticateToken, requireAdmin, upload.single('photo'), async (req, res) => {
+router.post('/', authenticateToken, requireStalkerAccess, upload.single('photo'), async (req, res) => {
   try {
     const { callsign, fullName, faceId, reward, lastSeen, reason } = req.body;
+    const userRole = req.user.role; // Get user's role from token
 
     if (!callsign || !fullName || !faceId || !reward || !lastSeen || !reason) {
       return res.status(400).json({ 
@@ -136,8 +141,8 @@ router.post('/', authenticateToken, requireAdmin, upload.single('photo'), async 
     const photoPath = req.file ? req.file.path : null;
 
     const result = await pool.query(
-      'INSERT INTO wanted_stalkers (callsign, full_name, face_id, reward, last_seen, reason, photo_path) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [callsign, fullName, faceId, rewardValue, lastSeen, reason, photoPath]
+      'INSERT INTO wanted_stalkers (callsign, full_name, face_id, role, reward, last_seen, reason, photo_path) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [callsign, fullName, faceId, userRole, rewardValue, lastSeen, reason, photoPath]
     );
 
     const wanted = result.rows[0];
@@ -155,10 +160,11 @@ router.post('/', authenticateToken, requireAdmin, upload.single('photo'), async 
 });
 
 // Обновить информацию о разыскиваемом
-router.put('/:id', authenticateToken, requireAdmin, upload.single('photo'), async (req, res) => {
+router.put('/:id', authenticateToken, requireStalkerAccess, upload.single('photo'), async (req, res) => {
   try {
     const { id } = req.params;
     const { callsign, fullName, faceId, reward, lastSeen, reason } = req.body;
+    const userRole = req.user.role; // Get user's role from token
 
     if (!callsign || !fullName || !faceId || !reward || !lastSeen || !reason) {
       return res.status(400).json({ 
@@ -174,10 +180,10 @@ router.put('/:id', authenticateToken, requireAdmin, upload.single('photo'), asyn
       });
     }
 
-    // Проверяем, существует ли разыскиваемый
+    // Проверяем, существует ли разыскиваемый и принадлежит ли он текущей роли
     const existingWanted = await pool.query(
-      'SELECT * FROM wanted_stalkers WHERE id = $1',
-      [id]
+      'SELECT * FROM wanted_stalkers WHERE id = $1 AND role = $2',
+      [id, userRole]
     );
 
     if (existingWanted.rows.length === 0) {
@@ -207,8 +213,8 @@ router.put('/:id', authenticateToken, requireAdmin, upload.single('photo'), asyn
     }
 
     const result = await pool.query(
-      'UPDATE wanted_stalkers SET callsign = $1, full_name = $2, face_id = $3, reward = $4, last_seen = $5, reason = $6, photo_path = $7, updated_at = CURRENT_TIMESTAMP WHERE id = $8 RETURNING *',
-      [callsign, fullName, faceId, rewardValue, lastSeen, reason, photoPath, id]
+      'UPDATE wanted_stalkers SET callsign = $1, full_name = $2, face_id = $3, reward = $4, last_seen = $5, reason = $6, photo_path = $7, updated_at = CURRENT_TIMESTAMP WHERE id = $8 AND role = $9 RETURNING *',
+      [callsign, fullName, faceId, rewardValue, lastSeen, reason, photoPath, id, userRole]
     );
 
     const wanted = result.rows[0];
@@ -226,14 +232,15 @@ router.put('/:id', authenticateToken, requireAdmin, upload.single('photo'), asyn
 });
 
 // Удалить из розыска
-router.delete('/:id', authenticateToken, requireAdmin, async (req, res) => {
+router.delete('/:id', authenticateToken, requireStalkerAccess, async (req, res) => {
   try {
     const { id } = req.params;
+    const userRole = req.user.role; // Get user's role from token
 
-    // Проверяем, существует ли разыскиваемый
+    // Проверяем, существует ли разыскиваемый и принадлежит ли он текущей роли
     const existingWanted = await pool.query(
-      'SELECT photo_path FROM wanted_stalkers WHERE id = $1',
-      [id]
+      'SELECT photo_path FROM wanted_stalkers WHERE id = $1 AND role = $2',
+      [id, userRole]
     );
 
     if (existingWanted.rows.length === 0) {
@@ -246,13 +253,79 @@ router.delete('/:id', authenticateToken, requireAdmin, async (req, res) => {
       fs.unlinkSync(photoPath);
     }
 
-    await pool.query('DELETE FROM wanted_stalkers WHERE id = $1', [id]);
+    await pool.query('DELETE FROM wanted_stalkers WHERE id = $1 AND role = $2', [id, userRole]);
 
     res.json({ message: 'Человек успешно удален из розыска' });
 
   } catch (error) {
     console.error('Ошибка удаления из розыска:', error);
     res.status(500).json({ message: 'Ошибка удаления из розыска' });
+  }
+});
+
+// Получить все доступные роли для навигации
+router.get('/roles/list', authenticateToken, async (req, res) => {
+  try {
+    const roles = [
+      { value: 'Freedom', label: 'Свобода', color: '#00ff00' },
+      { value: 'Duty', label: 'Долг', color: '#ff0000' },
+      { value: 'Neutral', label: 'Нейтральный', color: '#ffff00' },
+      { value: 'Mercenary', label: 'Наемник', color: '#ff6600' },
+      { value: 'Monolith', label: 'Монолит', color: '#6600ff' },
+      { value: 'Bandit', label: 'Бандит', color: '#ff0066' },
+      { value: 'ClearSky', label: 'Чистое небо', color: '#00ffff' },
+      { value: 'Loner', label: 'Одиночка', color: '#666666' }
+    ];
+
+    res.json({ roles });
+  } catch (error) {
+    console.error('Ошибка получения ролей:', error);
+    res.status(500).json({ message: 'Ошибка получения списка ролей' });
+  }
+});
+
+// Получить разыскиваемых конкретной роли (для админов)
+router.get('/role/:role', authenticateToken, async (req, res) => {
+  try {
+    const { role } = req.params;
+    const { searchBy, searchTerm } = req.query;
+
+    let query = 'SELECT * FROM wanted_stalkers WHERE role = $1';
+    const params = [role];
+    let paramCount = 1;
+
+    if (searchTerm) {
+      paramCount++;
+      if (searchBy === 'callsign') {
+        query += ` AND callsign ILIKE $${paramCount}`;
+        params.push(`%${searchTerm}%`);
+      } else if (searchBy === 'faceId') {
+        query += ` AND face_id ILIKE $${paramCount}`;
+        params.push(`%${searchTerm}%`);
+      } else if (searchBy === 'fullName') {
+        query += ` AND full_name ILIKE $${paramCount}`;
+        params.push(`%${searchTerm}%`);
+      }
+    }
+
+    query += ' ORDER BY created_at DESC';
+
+    const result = await pool.query(query, params);
+
+    const wanted = result.rows.map(person => ({
+      ...person,
+      photo: person.photo_path ? `/uploads/wanted/${path.basename(person.photo_path)}` : null
+    }));
+
+    res.json({
+      wanted,
+      total: result.rows.length,
+      role
+    });
+
+  } catch (error) {
+    console.error('Ошибка получения разыскиваемых роли:', error);
+    res.status(500).json({ message: 'Ошибка получения списка разыскиваемых' });
   }
 });
 

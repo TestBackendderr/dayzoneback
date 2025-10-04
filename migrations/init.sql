@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS stalkers (
     callsign VARCHAR(100) NOT NULL,
     full_name VARCHAR(255) NOT NULL,
     face_id VARCHAR(50) UNIQUE NOT NULL,
+    role VARCHAR(50) NOT NULL DEFAULT 'Neutral',
     note TEXT,
     photo_path VARCHAR(500),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -41,6 +42,7 @@ CREATE TABLE IF NOT EXISTS wanted_stalkers (
     callsign VARCHAR(100) NOT NULL,
     full_name VARCHAR(255) NOT NULL,
     face_id VARCHAR(50) NOT NULL,
+    role VARCHAR(50) NOT NULL DEFAULT 'Neutral',
     reward DECIMAL(15,2) NOT NULL,
     last_seen VARCHAR(255) NOT NULL,
     reason TEXT NOT NULL,
@@ -63,10 +65,20 @@ INSERT INTO users (username, password, role)
 VALUES ('admin', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Admin')
 ON CONFLICT (username) DO NOTHING;
 
+-- Вставка только администратора по умолчанию
+-- Остальные пользователи создаются через админ-панель
+
 -- Вставка тестовых сталкеров
-INSERT INTO stalkers (callsign, full_name, face_id, note) VALUES
-('Снайпер', 'Иванов Иван Иванович', 'ST001', 'Опытный сталкер, специализируется на дальних переходах'),
-('Волк', 'Петров Петр Петрович', 'ST002', 'Бывший военный, знает зону как свои пять пальцев'),
-('Тень', 'Сидоров Сидор Сидорович', 'ST003', 'Мастер скрытности, работает в одиночку'),
-('Охотник', 'Козлов Козел Козлович', 'ST004', 'Специалист по артефактам, имеет связи с учеными')
+INSERT INTO stalkers (callsign, full_name, face_id, role, note) VALUES
+('Снайпер', 'Иванов Иван Иванович', 'ST001', 'Freedom', 'Опытный сталкер, специализируется на дальних переходах'),
+('Волк', 'Петров Петр Петрович', 'ST002', 'Duty', 'Бывший военный, знает зону как свои пять пальцев'),
+('Тень', 'Сидоров Сидор Сидорович', 'ST003', 'Neutral', 'Мастер скрытности, работает в одиночку'),
+('Охотник', 'Козлов Козел Козлович', 'ST004', 'Mercenary', 'Специалист по артефактам, имеет связи с учеными')
 ON CONFLICT (face_id) DO NOTHING;
+
+-- Вставка тестовых данных для розыска
+INSERT INTO wanted_stalkers (callsign, full_name, face_id, role, reward, last_seen, reason) VALUES
+('Бандит', 'Криминальный Криминал Криминалович', 'W001', 'Bandit', 50000.00, 'Территория бандитов', 'Нападение на торговцев'),
+('Предатель', 'Изменник Измен Изменович', 'W002', 'Neutral', 25000.00, 'Бар "100 рентген"', 'Кража артефактов'),
+('Убийца', 'Хладнокровный Холод Холодович', 'W003', 'Mercenary', 75000.00, 'Заброшенная лаборатория', 'Убийство сталкеров'),
+('Шпион', 'Скрытный Секрет Секретович', 'W004', 'Duty', 30000.00, 'Военная база', 'Шпионаж в пользу Свободы');

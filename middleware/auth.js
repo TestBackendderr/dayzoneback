@@ -43,4 +43,11 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-module.exports = { authenticateToken, requireAdmin };
+// Middleware для управления сталкерами - любой аутентифицированный пользователь может управлять сталкерами своей фракции
+const requireStalkerAccess = (req, res, next) => {
+  // Разрешаем доступ всем аутентифицированным пользователям
+  // Фильтрация по роли происходит в самих роутах
+  next();
+};
+
+module.exports = { authenticateToken, requireAdmin, requireStalkerAccess };
