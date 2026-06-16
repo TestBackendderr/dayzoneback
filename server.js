@@ -9,6 +9,7 @@ const authRoutes = require('./routes/auth');
 const stalkerRoutes = require('./routes/stalkers');
 const financeRoutes = require('./routes/finances');
 const wantedRoutes = require('./routes/wanted');
+const groupingRoutes = require('./routes/groupings');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -61,6 +62,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/stalkers', stalkerRoutes);
 app.use('/api/finances', financeRoutes);
 app.use('/api/wanted', wantedRoutes);
+app.use('/api/groupings', groupingRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

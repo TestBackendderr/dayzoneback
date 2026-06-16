@@ -2,11 +2,10 @@ const pool = require('../config/database');
 
 async function createTables() {
   const client = await pool.connect();
-  
+
   try {
     await client.query('BEGIN');
 
-    // Создание таблицы пользователей
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -18,13 +17,13 @@ async function createTables() {
       )
     `);
 
-    // Создание таблицы сталкеров
     await client.query(`
       CREATE TABLE IF NOT EXISTS stalkers (
         id SERIAL PRIMARY KEY,
         callsign VARCHAR(100) NOT NULL,
         full_name VARCHAR(255) NOT NULL,
         face_id VARCHAR(50) UNIQUE NOT NULL,
+        role VARCHAR(50) NOT NULL DEFAULT 'Neutral',
         note TEXT,
         photo_path VARCHAR(500),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -32,7 +31,11 @@ async function createTables() {
       )
     `);
 
-    // Создание таблицы финансовых операций
+    await client.query(`
+      ALTER TABLE stalkers
+      ADD COLUMN IF NOT EXISTS role VARCHAR(50) NOT NULL DEFAULT 'Neutral'
+    `);
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS financial_operations (
         id SERIAL PRIMARY KEY,
@@ -46,15 +49,42 @@ async function createTables() {
       )
     `);
 
-    // Создание индексов для оптимизации
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS wanted_stalkers (
+        id SERIAL PRIMARY KEY,
+        callsign VARCHAR(100) NOT NULL,
+        full_name VARCHAR(255) NOT NULL,
+        face_id VARCHAR(50) NOT NULL,
+        role VARCHAR(50) NOT NULL DEFAULT 'Neutral',
+        reward DECIMAL(15,2) NOT NULL,
+        last_seen VARCHAR(255) NOT NULL,
+        reason TEXT NOT NULL,
+        photo_path VARCHAR(500),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS groupings (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        code VARCHAR(50) UNIQUE NOT NULL,
+        color VARCHAR(20) DEFAULT '#ff6600',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     await client.query('CREATE INDEX IF NOT EXISTS idx_stalkers_callsign ON stalkers(callsign)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_stalkers_face_id ON stalkers(face_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_financial_user_id ON financial_operations(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_financial_created_at ON financial_operations(created_at)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_wanted_callsign ON wanted_stalkers(callsign)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_wanted_face_id ON wanted_stalkers(face_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_wanted_created_at ON wanted_stalkers(created_at)');
 
     await client.query('COMMIT');
     console.log('☢ Таблицы базы данных созданы успешно');
-    
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('❌ Ошибка создания таблиц:', error);
@@ -66,50 +96,65 @@ async function createTables() {
 
 async function seedData() {
   const client = await pool.connect();
-  
+
   try {
     await client.query('BEGIN');
 
-    // Проверяем, есть ли уже пользователи
     const userCheck = await client.query('SELECT COUNT(*) FROM users');
-    
-    if (parseInt(userCheck.rows[0].count) === 0) {
-      // Создаем администратора по умолчанию
+
+    if (parseInt(userCheck.rows[0].count, 10) === 0) {
       const bcrypt = require('bcryptjs');
       const hashedPassword = await bcrypt.hash('admin', 10);
-      
+
       await client.query(
         'INSERT INTO users (username, password, role) VALUES ($1, $2, $3)',
         ['admin', hashedPassword, 'Admin']
       );
-      
+
       console.log('☢ Создан администратор по умолчанию: admin/admin');
     }
 
-    // Проверяем, есть ли уже сталкеры
     const stalkerCheck = await client.query('SELECT COUNT(*) FROM stalkers');
-    
-    if (parseInt(stalkerCheck.rows[0].count) === 0) {
-      // Добавляем тестовых сталкеров
+
+    if (parseInt(stalkerCheck.rows[0].count, 10) === 0) {
       const sampleStalkers = [
-        ['Снайпер', 'Иванов Иван Иванович', 'ST001', 'Опытный сталкер, специализируется на дальних переходах'],
-        ['Волк', 'Петров Петр Петрович', 'ST002', 'Бывший военный, знает зону как свои пять пальцев'],
-        ['Тень', 'Сидоров Сидор Сидорович', 'ST003', 'Мастер скрытности, работает в одиночку'],
-        ['Охотник', 'Козлов Козел Козлович', 'ST004', 'Специалист по артефактам, имеет связи с учеными']
+        ['Снайпер', 'Иванов Иван Иванович', 'ST001', 'Freedom', 'Опытный сталкер, специализируется на дальних переходах'],
+        ['Волк', 'Петров Петр Петрович', 'ST002', 'Duty', 'Бывший военный, знает зону как свои пять пальцев'],
+        ['Тень', 'Сидоров Сидор Сидорович', 'ST003', 'Neutral', 'Мастер скрытности, работает в одиночку'],
+        ['Охотник', 'Козлов Козел Козлович', 'ST004', 'Mercenary', 'Специалист по артефактам, имеет связи с учеными'],
       ];
 
-      for (const [callsign, fullName, faceId, note] of sampleStalkers) {
+      for (const [callsign, fullName, faceId, role, note] of sampleStalkers) {
         await client.query(
-          'INSERT INTO stalkers (callsign, full_name, face_id, note) VALUES ($1, $2, $3, $4)',
-          [callsign, fullName, faceId, note]
+          'INSERT INTO stalkers (callsign, full_name, face_id, role, note) VALUES ($1, $2, $3, $4, $5)',
+          [callsign, fullName, faceId, role, note]
         );
       }
-      
+
       console.log('☢ Добавлены тестовые сталкеры');
     }
 
+    const wantedCheck = await client.query('SELECT COUNT(*) FROM wanted_stalkers');
+
+    if (parseInt(wantedCheck.rows[0].count, 10) === 0) {
+      const wantedStalkers = [
+        ['Бандит', 'Криминальный Криминал Криминалович', 'W001', 'Bandit', 50000.0, 'Территория бандитов', 'Нападение на торговцев'],
+        ['Предатель', 'Изменник Измен Изменович', 'W002', 'Neutral', 25000.0, 'Бар "100 рентген"', 'Кража артефактов'],
+        ['Убийца', 'Хладнокровный Холод Холодович', 'W003', 'Mercenary', 75000.0, 'Заброшенная лаборатория', 'Убийство сталкеров'],
+        ['Шпион', 'Скрытный Секрет Секретович', 'W004', 'Duty', 30000.0, 'Военная база', 'Шпионаж в пользу Свободы'],
+      ];
+
+      for (const [callsign, fullName, faceId, role, reward, lastSeen, reason] of wantedStalkers) {
+        await client.query(
+          'INSERT INTO wanted_stalkers (callsign, full_name, face_id, role, reward, last_seen, reason) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+          [callsign, fullName, faceId, role, reward, lastSeen, reason]
+        );
+      }
+
+      console.log('☢ Добавлены тестовые данные розыска');
+    }
+
     await client.query('COMMIT');
-    
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('❌ Ошибка заполнения тестовыми данными:', error);

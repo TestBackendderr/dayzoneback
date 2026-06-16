@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const pool = require('../config/database');
 const { authenticateToken, requireAdmin, requireStalkerAccess } = require('../middleware/auth');
+const { getGroupingsAsRoles } = require('../utils/groupings');
 
 const router = express.Router();
 
@@ -258,17 +259,7 @@ router.delete('/:id', authenticateToken, requireStalkerAccess, async (req, res) 
 // Получить все доступные роли для навигации
 router.get('/roles/list', authenticateToken, async (req, res) => {
   try {
-    const roles = [
-      { value: 'Freedom', label: 'Свобода', color: '#00ff00' },
-      { value: 'Duty', label: 'Долг', color: '#ff0000' },
-      { value: 'Neutral', label: 'Нейтральный', color: '#ffff00' },
-      { value: 'Mercenary', label: 'Наемник', color: '#ff6600' },
-      { value: 'Monolith', label: 'Монолит', color: '#6600ff' },
-      { value: 'Bandit', label: 'Бандит', color: '#ff0066' },
-      { value: 'ClearSky', label: 'Чистое небо', color: '#00ffff' },
-      { value: 'Loner', label: 'Одиночка', color: '#666666' }
-    ];
-
+    const roles = await getGroupingsAsRoles();
     res.json({ roles });
   } catch (error) {
     console.error('Ошибка получения ролей:', error);

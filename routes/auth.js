@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/database');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { ADMIN_ROLE, isValidUserRole } = require('../utils/groupings');
 
 const router = express.Router();
 
@@ -37,7 +38,7 @@ router.post('/register', async (req, res) => {
     // Создаем пользователя
     const result = await pool.query(
       'INSERT INTO users (username, password, role) VALUES ($1, $2, $3) RETURNING id, username, role',
-      [username, hashedPassword, 'Neutral']
+      [username, hashedPassword, null]
     );
 
     const user = result.rows[0];
@@ -173,10 +174,10 @@ router.post('/users', authenticateToken, requireAdmin, async (req, res) => {
     }
 
     // Проверяем, что роль валидна
-    const validRoles = ['Admin', 'Duty', 'Freedom', 'Neutral', 'Mercenary', 'Bandit', 'Monolith', 'ClearSky', 'Loner'];
-    if (!validRoles.includes(role)) {
-      return res.status(400).json({ 
-        message: 'Неверная роль. Доступные роли: ' + validRoles.join(', ') 
+    const roleValid = await isValidUserRole(role);
+    if (!roleValid) {
+      return res.status(400).json({
+        message: 'Неверная роль. Выберите группу из списка или роль Администратор',
       });
     }
 
@@ -226,10 +227,10 @@ router.put('/users/:id', authenticateToken, requireAdmin, async (req, res) => {
     }
 
     // Проверяем, что роль валидна
-    const validRoles = ['Admin', 'Duty', 'Freedom', 'Neutral', 'Mercenary', 'Bandit', 'Monolith', 'ClearSky', 'Loner'];
-    if (!validRoles.includes(role)) {
-      return res.status(400).json({ 
-        message: 'Неверная роль. Доступные роли: ' + validRoles.join(', ') 
+    const roleValid = await isValidUserRole(role);
+    if (!roleValid) {
+      return res.status(400).json({
+        message: 'Неверная роль. Выберите группу из списка или роль Администратор',
       });
     }
 
