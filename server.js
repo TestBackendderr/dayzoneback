@@ -10,6 +10,13 @@ const stalkerRoutes = require('./routes/stalkers');
 const financeRoutes = require('./routes/finances');
 const wantedRoutes = require('./routes/wanted');
 const groupingRoutes = require('./routes/groupings');
+const contractRoutes = require('./routes/contracts');
+const groupContractRoutes = require('./routes/groupContracts');
+const groupChatRoutes = require('./routes/groupChat');
+const orgChatRoutes = require('./routes/orgChat');
+const alterEgoRoutes = require('./routes/alterEgos');
+const groupMapRoutes = require('./routes/groupMaps');
+const groupInfoRoutes = require('./routes/groupInfo');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -63,6 +70,13 @@ app.use('/api/stalkers', stalkerRoutes);
 app.use('/api/finances', financeRoutes);
 app.use('/api/wanted', wantedRoutes);
 app.use('/api/groupings', groupingRoutes);
+app.use('/api/contracts', contractRoutes);
+app.use('/api/group-contracts', groupContractRoutes);
+app.use('/api/group-chat', groupChatRoutes);
+app.use('/api/org-chat', orgChatRoutes);
+app.use('/api/alter-egos', alterEgoRoutes);
+app.use('/api/group-maps', groupMapRoutes);
+app.use('/api/group-info', groupInfoRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

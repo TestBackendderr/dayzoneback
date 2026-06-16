@@ -75,7 +75,167 @@ async function createTables() {
       )
     `);
 
-    await client.query('CREATE INDEX IF NOT EXISTS idx_stalkers_callsign ON stalkers(callsign)');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS contracts (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        amount DECIMAL(15,2) NOT NULL DEFAULT 0,
+        goal TEXT NOT NULL,
+        details TEXT,
+        notes TEXT,
+        link VARCHAR(500),
+        status VARCHAR(20) NOT NULL DEFAULT 'open'
+          CHECK (status IN ('open', 'inwork', 'closed')),
+        assigned_group_code VARCHAR(50),
+        assigned_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        assigned_at TIMESTAMP,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS group_contracts (
+        id SERIAL PRIMARY KEY,
+        group_code VARCHAR(50) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        amount DECIMAL(15,2) NOT NULL DEFAULT 0,
+        goal TEXT NOT NULL,
+        details TEXT,
+        docx_link VARCHAR(500),
+        photo_path VARCHAR(500),
+        status VARCHAR(20) NOT NULL DEFAULT 'active'
+          CHECK (status IN ('active', 'completed', 'cancelled')),
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS group_contract_notes (
+        id SERIAL PRIMARY KEY,
+        contract_id INTEGER NOT NULL REFERENCES group_contracts(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        username VARCHAR(50) NOT NULL,
+        message TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS group_chat_messages (
+        id SERIAL PRIMARY KEY,
+        group_code VARCHAR(50) NOT NULL,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        username VARCHAR(50) NOT NULL,
+        message TEXT DEFAULT '',
+        photo_path VARCHAR(500),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      ALTER TABLE group_chat_messages
+      ADD COLUMN IF NOT EXISTS photo_path VARCHAR(500)
+    `);
+
+    await client.query(`
+      ALTER TABLE group_chat_messages
+      ALTER COLUMN message DROP NOT NULL
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS org_chat_messages (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        username VARCHAR(50) NOT NULL,
+        author_role VARCHAR(50) NOT NULL,
+        message TEXT DEFAULT '',
+        photo_path VARCHAR(500),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS alter_egos (
+        id SERIAL PRIMARY KEY,
+        group_code VARCHAR(50) NOT NULL,
+        real_callsign VARCHAR(100) NOT NULL,
+        alter_ego VARCHAR(100) NOT NULL,
+        short_history TEXT,
+        status VARCHAR(20) NOT NULL DEFAULT 'active'
+          CHECK (status IN ('active', 'inactive')),
+        notes TEXT,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS group_maps (
+        id SERIAL PRIMARY KEY,
+        group_code VARCHAR(50) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        notes TEXT,
+        photo_path VARCHAR(500) NOT NULL,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS group_map_notes (
+        id SERIAL PRIMARY KEY,
+        map_id INTEGER NOT NULL REFERENCES group_maps(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        username VARCHAR(50) NOT NULL,
+        message TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS group_info (
+        id SERIAL PRIMARY KEY,
+        group_code VARCHAR(50) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        body TEXT NOT NULL,
+        photo_path VARCHAR(500),
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS group_info_notes (
+        id SERIAL PRIMARY KEY,
+        info_id INTEGER NOT NULL REFERENCES group_info(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        username VARCHAR(50) NOT NULL,
+        message TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_contracts_status ON contracts(status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_contracts_assigned_group ON contracts(assigned_group_code)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_group_contracts_group ON group_contracts(group_code)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_group_contracts_status ON group_contracts(status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_group_contract_notes_contract ON group_contract_notes(contract_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_group_chat_group ON group_chat_messages(group_code)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_group_chat_created ON group_chat_messages(created_at)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_org_chat_created ON org_chat_messages(created_at)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_alter_egos_group ON alter_egos(group_code)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_alter_egos_status ON alter_egos(status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_group_maps_group ON group_maps(group_code)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_group_map_notes_map ON group_map_notes(map_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_group_info_group ON group_info(group_code)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_group_info_notes_info ON group_info_notes(info_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_stalkers_face_id ON stalkers(face_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_financial_user_id ON financial_operations(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_financial_created_at ON financial_operations(created_at)');
